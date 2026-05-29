@@ -81,8 +81,8 @@ class ToolUseLoop:
             messages.append({"role": "user", "content": tool_result_blocks})
 
         raise RuntimeError(
-            f"Tool loop exceeded {self.max_tool_rounds} tool rounds. "
-            "Check whether the model is repeatedly calling tools without producing a final answer."
+            f"El loop de tools supero {self.max_tool_rounds} rondas. "
+            "Revisa si el modelo esta llamando herramientas repetidamente sin entregar una respuesta final."
         )
 
 

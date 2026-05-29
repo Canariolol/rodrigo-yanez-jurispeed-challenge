@@ -18,8 +18,14 @@ proporcional de vacaciones?""",
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Jurispeed.ai multi-agent challenge CLI")
-    parser.add_argument("--demo", action="store_true", help="Run the mandatory 3-turn demo.")
+    parser = argparse.ArgumentParser(
+        description="CLI del challenge multi-agente de Jurispeed.ai"
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Ejecuta la demo obligatoria de 3 turns.",
+    )
     args = parser.parse_args(argv)
 
     session = ConversationSession()
@@ -31,10 +37,10 @@ def main(argv: list[str] | None = None) -> int:
         else:
             _run_interactive(orchestrator, session)
     except (AIProviderError, ProviderUnavailableError) as exc:
-        print(f"\nProvider error: {exc}", file=sys.stderr)
+        print(f"\nError del proveedor de IA: {exc}", file=sys.stderr)
         print(
-            "Check ANTHROPIC_API_KEY, account credits, provider env vars, or run the unit tests "
-            "to validate the tool loop without a live LLM.",
+            "Revisa ANTHROPIC_API_KEY, los fondos de la cuenta, las variables del proveedor "
+            "o ejecuta los tests unitarios para validar el loop de tools sin un LLM en vivo.",
             file=sys.stderr,
         )
         return 1
@@ -50,7 +56,7 @@ def _run_demo(orchestrator: OrchestratorAgent, session: ConversationSession) -> 
         print(result.text)
         if result.tool_calls:
             called_tools = ", ".join(trace.tool_name for trace in result.tool_calls)
-            print(f"\nTools: {called_tools}")
+            print(f"\nHerramientas usadas: {called_tools}")
 
 
 def _run_interactive(orchestrator: OrchestratorAgent, session: ConversationSession) -> None:
@@ -72,4 +78,3 @@ def _run_interactive(orchestrator: OrchestratorAgent, session: ConversationSessi
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

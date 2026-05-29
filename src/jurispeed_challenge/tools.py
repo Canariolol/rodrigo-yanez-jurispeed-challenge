@@ -11,7 +11,7 @@ ToolHandler = Callable[[dict[str, Any]], Any]
 
 
 class ToolExecutionError(RuntimeError):
-    """Raised when a local tool cannot be executed."""
+    """Se lanza cuando una herramienta local no puede ejecutarse."""
 
 
 @dataclass(frozen=True)
@@ -39,10 +39,9 @@ class ToolRegistry:
     def execute(self, tool_name: str, tool_input: dict[str, Any]) -> Any:
         tool = self._tools.get(tool_name)
         if tool is None:
-            raise ToolExecutionError(f"Unknown tool requested: {tool_name}")
+            raise ToolExecutionError(f"Herramienta solicitada desconocida: {tool_name}")
         return tool.handler(tool_input)
 
 
 def tool_result_to_text(result: Any) -> str:
     return json.dumps(result, ensure_ascii=False, indent=2)
-

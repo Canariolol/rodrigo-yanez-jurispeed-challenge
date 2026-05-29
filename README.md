@@ -16,6 +16,15 @@ La implementacion principal usa la Anthropic Python SDK directa con `tool_use` n
 
 ## Instalacion
 
+Inicializacion recomendada:
+
+```bash
+./scripts/bootstrap.sh
+source .venv/bin/activate
+```
+
+Si prefieres hacerlo manualmente:
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -23,7 +32,7 @@ pip install -e ".[dev]"
 cp .env.example .env
 ```
 
-Luego editar `.env`:
+Luego edita `.env`:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...
@@ -66,7 +75,7 @@ El flujo es este:
 5. El resultado vuelve al modelo como `tool_result`.
 6. Claude sintetiza una respuesta final usando solo la evidencia encontrada.
 
-Ese loop manual vive en [tool_loop.py](/home/ryagar/Documentos/DevProyects/Entrevistas/jurispeed-challenge/src/jurispeed_challenge/tool_loop.py:8) y es la pieza central del challenge.
+Ese loop manual vive en [tool_loop.py](jurispeed-challenge/src/jurispeed_challenge/tool_loop.py) y es la pieza central del challenge.
 
 ## Tests
 
@@ -74,58 +83,53 @@ Ese loop manual vive en [tool_loop.py](/home/ryagar/Documentos/DevProyects/Entre
 pytest
 ```
 
-Los tests mockean el provider y no llaman a Anthropic. Esto valida que el loop de `tool_use`:
+Los tests mockean el proveedor y no llaman a Anthropic. Esto valida que el loop de `tool_use`:
 
 - Recibe un bloque `tool_use`.
 - Ejecuta la herramienta local.
 - Responde con `tool_result` inmediatamente despues del mensaje del assistant.
 - Continua hasta obtener texto final.
 
-## Configuracion de providers
+## Configuracion de proveedores
 
-El registro por defecto usa Anthropic para todos los roles, que es la configuracion recomendada para esta entrega:
+El switch global recomendado vive en `.env`:
 
 ```bash
-JURISPEED_AI_PROVIDER=anthropic
-JURISPEED_AI_MODEL=claude-sonnet-4-5-20250929
+GLOBAL_AI_PROVIDER=anthropic
+GLOBAL_AI_MODEL=claude-sonnet-4-5-20250929
 ```
+
+Con eso solo, el sistema completo usa Anthropic para todos los roles.
 
 Tambien hay overrides por rol:
 
 ```bash
-JURISPEED_ORCHESTRATOR_PROVIDER=anthropic
-JURISPEED_ORCHESTRATOR_MODEL=claude-sonnet-4-5-20250929
-JURISPEED_LITIGANTE_PROVIDER=anthropic
-JURISPEED_NORMATIVO_PROVIDER=anthropic
+# JURISPEED_ORCHESTRATOR_PROVIDER=anthropic
+# JURISPEED_ORCHESTRATOR_MODEL=claude-sonnet-4-5-20250929
+# JURISPEED_LITIGANTE_PROVIDER=anthropic
+# JURISPEED_NORMATIVO_PROVIDER=anthropic
 ```
 
-La seleccion del provider ocurre en [ai_providers.py](/home/ryagar/Documentos/DevProyects/Entrevistas/jurispeed-challenge/src/jurispeed_challenge/ai_providers.py:79):
+Dejalos comentados si quieres que `GLOBAL_AI_PROVIDER` controle todo el sistema.
+
+La seleccion del proveedor ocurre en [ai_providers.py](jurispeed-challenge/src/jurispeed_challenge/ai_providers.py:79):
 
 - `AnthropicProvider` usa `ANTHROPIC_API_KEY`.
 - `BedrockProvider` existe como adaptador secundario, pero no es el camino principal del challenge.
 
-Si alguna vez quisieras cambiar costos a AWS, tambien se puede usar Amazon Bedrock mediante `AnthropicBedrock`:
+Si alguna vez quisieras llevar el costo a AWS, tambien se puede usar Amazon Bedrock mediante `AnthropicBedrock`:
 
 ```bash
-JURISPEED_AI_PROVIDER=bedrock
-JURISPEED_AI_MODEL=global.anthropic.claude-sonnet-4-5-20250929-v1:0
+GLOBAL_AI_PROVIDER=bedrock
+GLOBAL_AI_MODEL=global.anthropic.claude-sonnet-4-5-20250929-v1:0
 AWS_PROFILE=default
-AWS_REGION=us-west-2
+AWS_REGION=us-east-1
 ```
 
-Para usar Bedrock necesitas credenciales AWS configuradas y acceso habilitado al modelo de Anthropic en la region elegida. Para esta entrega conviene mantener Anthropic directo para que el cumplimiento del enunciado sea lo mas claro posible.
+La logica queda asi:
 
-## VSCode y .env
-
-El proyecto carga `.env` desde Python usando `python-dotenv`, asi que `jurispeed-challenge` puede leer `ANTHROPIC_API_KEY` aunque VSCode no inyecte variables al terminal.
-
-El aviso de VSCode significa que el terminal integrado no exportara automaticamente las variables del archivo `.env`. Para que comandos de shell como `echo $ANTHROPIC_API_KEY` o AWS CLI las vean, habilita:
-
-```json
-"python.terminal.useEnvFile": true
-```
-
-Tambien puedes exportarlas manualmente en el terminal si prefieres no cambiar esa configuracion.
+- `GLOBAL_AI_PROVIDER` y `GLOBAL_AI_MODEL`: switch global para todo el sistema.
+- `JURISPEED_ORCHESTRATOR_*`, `JURISPEED_LITIGANTE_*`, `JURISPEED_NORMATIVO_*`: overrides por agente si alguna vez los necesitas.
 
 ## Decision clave
 
@@ -148,10 +152,10 @@ Usuario / CLI
   -> respuesta final
 ```
 
-Cada agente obtiene su provider desde `ProviderResolver`, que lee un registro estandar por rol. Hoy todos usan Anthropic, pero el resto del codigo no depende directamente del SDK.
+Cada agente obtiene su proveedor desde `ProviderResolver`, que lee un registro estandar por rol. Hoy todos usan Anthropic, pero el resto del codigo no depende directamente del SDK.
 
 ## Limitaciones conocidas
 
 - La persistencia de historial es en memoria; para produccion usaria DynamoDB con TTL y particion por usuario/tenant.
-- La busqueda es keyword-based sobre mock data; en produccion seria OpenSearch KNN con embeddings, filtros por permisos y reranking.
+- La busqueda esta basada en palabras clave sobre mock data; en produccion seria OpenSearch KNN con embeddings, filtros por permisos y reranking.
 - El resultado real depende de fondos/API key de Anthropic; los tests cubren el loop de tools sin red.

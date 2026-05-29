@@ -39,30 +39,30 @@ DEFAULT_PROVIDER_REGISTRY: dict[AgentRole, AIProviderConfig] = {
 
 
 class AIProviderError(RuntimeError):
-    """Raised when an AI provider cannot complete a request."""
+    """Se lanza cuando un proveedor de IA no puede completar una solicitud."""
 
 
 class ProviderUnavailableError(AIProviderError):
-    """Raised when a configured provider is not implemented or unavailable."""
+    """Se lanza cuando el proveedor configurado no existe o no esta disponible."""
 
 
 class AIProvider(Protocol):
     def create_message(self, request: AIRequest) -> AIResponse:
-        """Send a message request to the configured model."""
+        """Envia una solicitud de mensaje al modelo configurado."""
 
 
 def load_provider_registry(load_env_file: bool = True) -> dict[AgentRole, AIProviderConfig]:
     if load_env_file:
         load_dotenv()
-    global_provider = os.getenv("JURISPEED_AI_PROVIDER")
-    global_model = os.getenv("JURISPEED_AI_MODEL")
+    global_provider = _read_env("GLOBAL_AI_PROVIDER")
+    global_model = _read_env("GLOBAL_AI_MODEL")
     registry: dict[AgentRole, AIProviderConfig] = {}
 
     for role, default_config in DEFAULT_PROVIDER_REGISTRY.items():
         env_prefix = f"JURISPEED_{role.upper()}"
         config = default_config
-        provider = os.getenv(f"{env_prefix}_PROVIDER", global_provider or config.provider)
-        model = os.getenv(f"{env_prefix}_MODEL", global_model or config.model)
+        provider = _read_env(f"{env_prefix}_PROVIDER") or global_provider or config.provider
+        model = _read_env(f"{env_prefix}_MODEL") or global_model or config.model
         max_tokens = _read_int(f"{env_prefix}_MAX_TOKENS", config.max_tokens)
         temperature = _read_float(f"{env_prefix}_TEMPERATURE", config.temperature)
         registry[role] = replace(
@@ -81,7 +81,7 @@ def build_provider(config: AIProviderConfig) -> AIProvider:
         return AnthropicProvider()
     if config.provider == "bedrock":
         return BedrockProvider()
-    raise ProviderUnavailableError(f"Unsupported AI provider: {config.provider}")
+    raise ProviderUnavailableError(f"Proveedor de IA no soportado: {config.provider}")
 
 
 class ProviderResolver:
@@ -106,7 +106,7 @@ class AnthropicProvider:
             from anthropic import Anthropic
         except ImportError as exc:
             raise ProviderUnavailableError(
-                "The anthropic package is not installed. Run `pip install -e .`."
+                "El paquete anthropic no esta instalado. Ejecuta `pip install -e .`."
             ) from exc
 
         self._client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
@@ -125,8 +125,8 @@ class BedrockProvider:
             from anthropic import AnthropicBedrock
         except ImportError as exc:
             raise ProviderUnavailableError(
-                "The installed anthropic package does not expose AnthropicBedrock. "
-                "Upgrade with `pip install -U anthropic`."
+                "El paquete anthropic instalado no expone AnthropicBedrock. "
+                "Actualizalo con `pip install -U anthropic`."
             ) from exc
 
         kwargs = {
@@ -182,9 +182,13 @@ def _create_message_with_retry(
                 delay_seconds = (2**attempt) + random.uniform(0, 0.25)
                 time.sleep(delay_seconds)
                 continue
-            raise AIProviderError(f"{provider_label} request failed: {exc}") from exc
+            raise AIProviderError(
+                f"La solicitud a {provider_label} fallo: {exc}"
+            ) from exc
 
-    raise AIProviderError(f"{provider_label} request failed after retries.")
+    raise AIProviderError(
+        f"La solicitud a {provider_label} fallo despues de reintentos."
+    )
 
 
 def _content_block_to_dict(block: object) -> ContentBlock:
@@ -194,7 +198,17 @@ def _content_block_to_dict(block: object) -> ContentBlock:
         return block.model_dump(exclude_none=True)  # type: ignore[no-any-return]
     if hasattr(block, "dict"):
         return block.dict(exclude_none=True)  # type: ignore[no-any-return]
-    raise AIProviderError(f"Unsupported content block returned by provider: {block!r}")
+    raise AIProviderError(
+        f"El proveedor devolvio un bloque de contenido no soportado: {block!r}"
+    )
+
+
+def _read_env(*names: str) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            return value
+    return None
 
 
 def _is_transient_provider_error(exc: Exception) -> bool:
@@ -220,7 +234,9 @@ def _read_int(name: str, default: int) -> int:
     try:
         return int(raw_value)
     except ValueError:
-        raise AIProviderError(f"Invalid integer value for {name}: {raw_value!r}") from None
+        raise AIProviderError(
+            f"Valor entero invalido para {name}: {raw_value!r}"
+        ) from None
 
 
 def _read_float(name: str, default: float) -> float:
@@ -230,4 +246,6 @@ def _read_float(name: str, default: float) -> float:
     try:
         return float(raw_value)
     except ValueError:
-        raise AIProviderError(f"Invalid float value for {name}: {raw_value!r}") from None
+        raise AIProviderError(
+            f"Valor float invalido para {name}: {raw_value!r}"
+        ) from None
