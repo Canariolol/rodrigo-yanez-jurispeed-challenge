@@ -16,6 +16,15 @@
               <p class="eyebrow">Jurispeed.ai</p>
               <h1>Panel de Agentes</h1>
             </div>
+            <button
+              class="theme-toggle"
+              type="button"
+              @click="toggleTheme"
+              :aria-pressed="theme === 'dark'"
+              :title="theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
+            >
+              [[ theme === 'dark' ? 'Claro' : 'Oscuro' ]]
+            </button>
           </div>
 
           <section class="side-panel">

@@ -6,9 +6,9 @@ La implementacion principal usa la Anthropic Python SDK directa con `tool_use` n
 
 ## Alcance
 
-- Orquestador Indigo `#6366f1`.
-- Agente Litigante Azul `#3b82f6`.
-- Agente Normativo Ambar `#f59e0b`.
+- Orquestador, color `#6366f1`.
+- Agente Litigante, color `#3b82f6`.
+- Agente Normativo, color `#f59e0b`.
 - Busquedas locales sobre `mock_data.json`.
 - Historial conversacional en memoria.
 - CLI interactivo y demo de los 3 turns obligatorios.

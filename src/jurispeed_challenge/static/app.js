@@ -12,6 +12,7 @@ const app = createApp({
       lastActivities: [],
       currentProcessingIndex: 0,
       processingTimerId: null,
+      theme: "light",
       processingSteps: [
         {
           key: "orchestrator-analysis",
@@ -46,9 +47,18 @@ const app = createApp({
     },
   },
   async mounted() {
+    this.initializeTheme();
     await this.fetchState();
   },
   methods: {
+    initializeTheme() {
+      const savedTheme = window.localStorage.getItem("jurispeed-theme");
+      const preferredTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+      this.theme = savedTheme || preferredTheme;
+      document.documentElement.setAttribute("data-theme", this.theme);
+    },
     async fetchState() {
       const response = await fetch("/api/state");
       const payload = await response.json();
@@ -141,6 +151,11 @@ const app = createApp({
         this.processingTimerId = null;
       }
       this.currentProcessingIndex = 0;
+    },
+    toggleTheme() {
+      this.theme = this.theme === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", this.theme);
+      window.localStorage.setItem("jurispeed-theme", this.theme);
     },
     renderMessage(content) {
       if (typeof content === "string") {
