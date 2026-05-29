@@ -60,7 +60,7 @@ def _run_demo(orchestrator: OrchestratorAgent, session: ConversationSession) -> 
 
 
 def _run_interactive(orchestrator: OrchestratorAgent, session: ConversationSession) -> None:
-    print("Jurispeed.ai challenge CLI. Escribe 'salir' para terminar.")
+    print("CLI del challenge de Jurispeed.ai. Escribe 'salir' para terminar.")
     while True:
         try:
             user_text = input("\nTu pregunta > ").strip()

@@ -32,6 +32,12 @@ pip install -e ".[dev]"
 cp .env.example .env
 ```
 
+Si cambias dependencias del proyecto mas adelante, vuelve a correr:
+
+```bash
+pip install -e ".[dev]"
+```
+
 Luego edita `.env`:
 
 ```bash
@@ -125,6 +131,8 @@ GLOBAL_AI_MODEL=global.anthropic.claude-sonnet-4-5-20250929-v1:0
 AWS_PROFILE=default
 AWS_REGION=us-east-1
 ```
+
+Para Bedrock, este proyecto instala `boto3` y `botocore[crt]` para que el cliente pueda ejecutar requests reales contra AWS, incluyendo metodos de autenticacion modernos como perfiles de login.
 
 La logica queda asi:
 

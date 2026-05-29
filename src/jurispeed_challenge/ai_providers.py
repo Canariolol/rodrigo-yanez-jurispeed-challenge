@@ -128,6 +128,20 @@ class BedrockProvider:
                 "El paquete anthropic instalado no expone AnthropicBedrock. "
                 "Actualizalo con `pip install -U anthropic`."
             ) from exc
+        try:
+            import botocore  # noqa: F401
+        except ImportError as exc:
+            raise ProviderUnavailableError(
+                "Bedrock requiere las dependencias del SDK de AWS. "
+                "Reinstala el proyecto con `pip install -e \".[dev]\"`."
+            ) from exc
+        try:
+            import awscrt  # noqa: F401
+        except ImportError as exc:
+            raise ProviderUnavailableError(
+                "Bedrock requiere el extra CRT de botocore para algunos metodos de autenticacion AWS. "
+                "Reinstala el proyecto con `pip install -e \".[dev]\"`."
+            ) from exc
 
         kwargs = {
             "aws_region": (
@@ -182,9 +196,7 @@ def _create_message_with_retry(
                 delay_seconds = (2**attempt) + random.uniform(0, 0.25)
                 time.sleep(delay_seconds)
                 continue
-            raise AIProviderError(
-                f"La solicitud a {provider_label} fallo: {exc}"
-            ) from exc
+            raise AIProviderError(_format_provider_error(provider_label, exc)) from exc
 
     raise AIProviderError(
         f"La solicitud a {provider_label} fallo despues de reintentos."
@@ -225,6 +237,21 @@ def _is_transient_provider_error(exc: Exception) -> bool:
         "ThrottlingException",
     }
     return exc.__class__.__name__ in transient_names
+
+
+def _format_provider_error(provider_label: str, exc: Exception) -> str:
+    if provider_label == "Bedrock":
+        if exc.__class__.__name__ == "MissingDependencyException":
+            return (
+                "La solicitud a Bedrock fallo porque faltan dependencias del SDK de AWS. "
+                "Reinstala el proyecto con `pip install -e \".[dev]\"`."
+            )
+        if isinstance(exc, KeyError):
+            return (
+                "La solicitud a Bedrock fallo por un problema con la configuracion o autenticacion AWS. "
+                "Revisa AWS_PROFILE, AWS_REGION y que tu sesion/perfil de AWS este vigente."
+            )
+    return f"La solicitud a {provider_label} fallo: {exc}"
 
 
 def _read_int(name: str, default: int) -> int:
