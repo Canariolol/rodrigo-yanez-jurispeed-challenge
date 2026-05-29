@@ -15,6 +15,9 @@ from jurispeed_challenge.tools import ToolDefinition, ToolRegistry
 from jurispeed_challenge.types import AIRequest, AgentRunResult, Message
 
 
+SPECIALIST_CONTEXT_MESSAGE_LIMIT = 4
+
+
 @dataclass
 class ConversationSession:
     history: list[Message] = field(default_factory=list)
@@ -31,7 +34,11 @@ class LitiganteAgent:
     def __init__(self, resolver: ProviderResolver) -> None:
         self.resolver = resolver
 
-    def run(self, query: str) -> AgentRunResult:
+    def run(
+        self,
+        query: str,
+        conversation_history: list[Message] | None = None,
+    ) -> AgentRunResult:
         config = self.resolver.get_config("litigante")
         provider = self.resolver.get_provider("litigante")
         tools = ToolRegistry(
@@ -64,7 +71,7 @@ class LitiganteAgent:
             AIRequest(
                 config=config,
                 system=LITIGANTE_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": query}],
+                messages=_build_specialist_messages(query, conversation_history),
                 tools=tools.schemas(),
                 tool_choice={"type": "tool", "name": "search_jurisprudencia"},
             )
@@ -75,7 +82,11 @@ class NormativoAgent:
     def __init__(self, resolver: ProviderResolver) -> None:
         self.resolver = resolver
 
-    def run(self, query: str) -> AgentRunResult:
+    def run(
+        self,
+        query: str,
+        conversation_history: list[Message] | None = None,
+    ) -> AgentRunResult:
         config = self.resolver.get_config("normativo")
         provider = self.resolver.get_provider("normativo")
         tools = ToolRegistry(
@@ -101,7 +112,7 @@ class NormativoAgent:
             AIRequest(
                 config=config,
                 system=NORMATIVO_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": query}],
+                messages=_build_specialist_messages(query, conversation_history),
                 tools=tools.schemas(),
                 tool_choice={"type": "tool", "name": "search_normativa"},
             )
@@ -131,7 +142,11 @@ class OrchestratorAgent:
                         "properties": {"query": {"type": "string"}},
                         "required": ["query"],
                     },
-                    handler=lambda params: self._route_to_litigante(params, user_text),
+                    handler=lambda params: self._route_to_litigante(
+                        params,
+                        user_text,
+                        session.history,
+                    ),
                 ),
                 ToolDefinition(
                     name="route_to_normativo",
@@ -145,7 +160,11 @@ class OrchestratorAgent:
                         "properties": {"query": {"type": "string"}},
                         "required": ["query"],
                     },
-                    handler=lambda params: self._route_to_normativo(params, user_text),
+                    handler=lambda params: self._route_to_normativo(
+                        params,
+                        user_text,
+                        session.history,
+                    ),
                 ),
                 ToolDefinition(
                     name="synthesize",
@@ -180,9 +199,17 @@ class OrchestratorAgent:
         session.add_turn(user_text, result.text)
         return result
 
-    def _route_to_litigante(self, params: dict[str, Any], fallback_query: str) -> dict[str, Any]:
+    def _route_to_litigante(
+        self,
+        params: dict[str, Any],
+        fallback_query: str,
+        conversation_history: list[Message],
+    ) -> dict[str, Any]:
         query = str(params.get("query") or fallback_query)
-        result = self.litigante.run(query)
+        result = self.litigante.run(
+            query,
+            conversation_history=conversation_history,
+        )
         return {
             "agent": "litigante",
             "color": "#3b82f6",
@@ -191,9 +218,17 @@ class OrchestratorAgent:
             "tool_calls": [_trace_to_dict(trace) for trace in result.tool_calls],
         }
 
-    def _route_to_normativo(self, params: dict[str, Any], fallback_query: str) -> dict[str, Any]:
+    def _route_to_normativo(
+        self,
+        params: dict[str, Any],
+        fallback_query: str,
+        conversation_history: list[Message],
+    ) -> dict[str, Any]:
         query = str(params.get("query") or fallback_query)
-        result = self.normativo.run(query)
+        result = self.normativo.run(
+            query,
+            conversation_history=conversation_history,
+        )
         return {
             "agent": "normativo",
             "color": "#f59e0b",
@@ -224,3 +259,34 @@ def _trace_to_dict(trace: object) -> dict[str, Any]:
         "is_error": getattr(trace, "is_error"),
     }
 
+
+def _build_specialist_messages(
+    query: str,
+    conversation_history: list[Message] | None,
+) -> list[Message]:
+    if not conversation_history:
+        return [{"role": "user", "content": query}]
+
+    recent_history = conversation_history[-SPECIALIST_CONTEXT_MESSAGE_LIMIT:]
+    history_lines = []
+    for message in recent_history:
+        role = str(message.get("role", "user"))
+        content = str(message.get("content", "")).strip()
+        if not content:
+            continue
+        label = "Usuario" if role == "user" else "Asistente"
+        history_lines.append(f"{label}: {content}")
+
+    if not history_lines:
+        return [{"role": "user", "content": query}]
+
+    history_text = "\n".join(history_lines)
+    enriched_query = (
+        "Contexto conversacional reciente:\n"
+        f"{history_text}\n\n"
+        "Consulta actual a resolver:\n"
+        f"{query}\n\n"
+        "Usa el contexto solo para interpretar referencias del seguimiento, "
+        "pero busca evidencia en mock_data.json segun la consulta actual."
+    )
+    return [{"role": "user", "content": enriched_query}]
