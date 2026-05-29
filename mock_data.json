@@ -1,0 +1,30 @@
+{
+  "jurisprudencia": [
+    {
+      "id": "ROL-1234-2024",
+      "tribunal": "Corte de Apelaciones de Santiago",
+      "extracto": "Se condena al arrendatario al pago de 3 meses de renta adeudada mas reajustes. Procede el lanzamiento por falta de pago."
+    },
+    {
+      "id": "ROL-5678-2023",
+      "tribunal": "Corte de Apelaciones de Valparaiso",
+      "extracto": "El arrendador debe notificar judicialmente al arrendatario antes de iniciar accion de terminacion de contrato."
+    },
+    {
+      "id": "ROL-9012-2022",
+      "tribunal": "Juzgado Civil de Santiago",
+      "extracto": "La deuda de rentas devengadas prescribe en 5 anos desde su exigibilidad segun art. 2515 del Codigo Civil."
+    }
+  ],
+  "normativa": [
+    {
+      "codigo": "Art. 31 N2 LIR",
+      "descripcion": "Son gastos deducibles las rentas de arrendamiento de bienes raices destinados al giro."
+    },
+    {
+      "codigo": "Circular SII N44-2022",
+      "descripcion": "Las rentas de arrendamiento no percibidas no constituyen ingreso tributable hasta su efectivo pago o abono en cuenta."
+    }
+  ]
+}
+
