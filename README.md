@@ -83,7 +83,7 @@ El sistema tiene tres agentes:
 
 El flujo es este:
 
-1. El usuario escribe una pregunta en el CLI.
+1. El usuario escribe una pregunta en el CLI (o el chatbox en la GUI web).
 2. El Orquestador envia esa pregunta a Claude con una lista de herramientas disponibles.
 3. Claude puede pedir `route_to_litigante`, `route_to_normativo` o ambas.
 4. El loop de `tool_use` ejecuta la herramienta local correspondiente.
@@ -200,9 +200,3 @@ Usuario / CLI
 ```
 
 Cada agente obtiene su proveedor desde `ProviderResolver`, que lee un registro estandar por rol. Hoy todos usan Anthropic, pero el resto del codigo no depende directamente del SDK.
-
-## Limitaciones conocidas
-
-- La persistencia de historial es en memoria; para produccion usaria DynamoDB con TTL y particion por usuario/tenant.
-- La busqueda esta basada en palabras clave sobre mock data; en produccion seria OpenSearch KNN con embeddings, filtros por permisos y reranking.
-- El resultado real depende de fondos/API key de Anthropic; los tests cubren el loop de tools sin red.
