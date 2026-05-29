@@ -43,7 +43,7 @@ class MockProvider:
         )
 
 
-def test_tool_loop_executes_tool_use_until_final_text() -> None:
+def test_tool_loop_returns_final_answer(test_report) -> None:
     provider = MockProvider()
     tools = ToolRegistry(
         [
@@ -87,6 +87,26 @@ def test_tool_loop_executes_tool_use_until_final_text() -> None:
     assert result.tool_calls[0].tool_result["count"] == 1
 
     second_call_messages = provider.observed_messages[1]
+
+    test_report.set_checked(
+        "El loop manual de tool_use ejecuta la tool, devuelve tool_result y obtiene texto final."
+    )
+    test_report.set_setup(
+        "Provider mock con dos respuestas: primero tool_use(search_jurisprudencia), luego texto final."
+    )
+    test_report.set_observed(
+        "provider.calls=2, tool_result.count=1 y el texto final contiene ROL-1234-2024."
+    )
+    test_report.add_step(
+        "El primer response del assistant pide search_jurisprudencia con top_k=1."
+    )
+    test_report.add_step(
+        "El loop ejecuta la handler local y manda un bloque tool_result como siguiente mensaje de user."
+    )
+    test_report.add_step(
+        "El segundo response del provider cierra el flujo con una respuesta sintetizada."
+    )
+
     assert second_call_messages[-1]["role"] == "user"
     assert second_call_messages[-1]["content"][0]["type"] == "tool_result"
     assert second_call_messages[-1]["content"][0]["tool_use_id"] == "toolu_test_1"

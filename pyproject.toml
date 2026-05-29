@@ -26,5 +26,6 @@ jurispeed-challenge = "jurispeed_challenge.cli:main"
 jurispeed-challenge-web = "jurispeed_challenge.web:main"
 
 [tool.pytest.ini_options]
+addopts = "-v"
 pythonpath = ["src"]
 testpaths = ["tests"]

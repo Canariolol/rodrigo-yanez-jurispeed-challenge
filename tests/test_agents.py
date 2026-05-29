@@ -50,7 +50,7 @@ class FakeResolver:
         return self.provider
 
 
-def test_litigante_agent_includes_recent_conversation_context_in_follow_up() -> None:
+def test_follow_up_keeps_context(test_report) -> None:
     provider = SpecialistMockProvider()
     agent = LitiganteAgent(FakeResolver(provider))  # type: ignore[arg-type]
     conversation_history = [
@@ -75,6 +75,24 @@ def test_litigante_agent_includes_recent_conversation_context_in_follow_up() -> 
     first_request_messages = provider.observed_messages[0]
     assert len(first_request_messages) == 1
     enriched_prompt = str(first_request_messages[0]["content"])
+
+    test_report.set_checked(
+        "El agente litigante recibe contexto reciente suficiente para interpretar un follow-up."
+    )
+    test_report.set_setup(
+        "Historial con arriendo impago + follow-up sobre clausula de arbitraje."
+    )
+    test_report.set_observed(
+        "El prompt enriquecido incluye Juan Perez, 4 meses sin pagar y la consulta actual."
+    )
+    test_report.add_step("Construye el contexto conversacional reciente antes de llamar al provider.")
+    test_report.add_step(
+        "Entrega una sola message al especialista con historial resumido y consulta actual."
+    )
+    test_report.add_step(
+        "El provider mock responde con tool_use sobre search_jurisprudencia usando ese contexto."
+    )
+
     assert "Contexto conversacional reciente" in enriched_prompt
     assert "Juan Perez" in enriched_prompt
     assert "4 meses sin pagar la renta" in enriched_prompt

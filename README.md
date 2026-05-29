@@ -105,6 +105,14 @@ La interfaz web agrega una capa Flask + Vue por encima del mismo orquestador:
 pytest
 ```
 
+Este repo tiene tres modos de salida para `pytest`:
+
+- `pytest`: salida verbose por defecto, con cada test listado por nombre y estado `PASSED`.
+- `pytest --simple`: salida clasica de pytest, con progreso por archivo y puntos.
+- `pytest --full`: salida verbose mas un bloque explicativo por cada test aprobado, pensado para demo y revision humana del challenge.
+
+Los nombres de los tests se mantienen cortos para que la salida normal sea facil de escanear. Cuando quieras mas contexto, `--full` muestra que valido cada test, que entrada uso, que resultado observo y como siguio el flujo cuando aplica.
+
 Los tests mockean el proveedor y no llaman a Anthropic. Esto valida que el loop de `tool_use`:
 
 - Recibe un bloque `tool_use`.
