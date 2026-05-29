@@ -94,10 +94,15 @@ Ese loop manual vive en [tool_loop.py](jurispeed-challenge/src/jurispeed_challen
 
 La interfaz web agrega una capa Flask + Vue por encima del mismo orquestador:
 
-- Flask expone `/api/chat`, `/api/state`, `/api/session/reset` y sirve la pagina principal.
+- Flask expone `/api/chat`, `/api/state`, `/api/session/reset`, `/api/tests/run` y sirve la pagina principal.
 - Vue renderiza el chat, el historial, el estado de carga y las herramientas usadas.
 - La sesion conversacional sigue siendo en memoria, solo que ahora se asocia a una cookie de sesion del navegador.
 - Para mantener el setup liviano del challenge, Vue se carga desde CDN en la pagina web.
+
+La GUI tiene dos modos que conviven en el mismo panel:
+
+- **Consulta** (por defecto): hace la llamada real al LLM a traves del orquestador.
+- **Tests**: corre la suite local de `pytest` desde la interfaz, sin tocar el LLM. Trae un selector de detalle `Simple | Classic | Full` y muestra la salida en una consola junto a un resumen de aprobados/fallidos y duracion.
 
 ## Tests
 
@@ -112,6 +117,16 @@ Este repo tiene tres modos de salida para `pytest`:
 - `pytest --full`: salida verbose mas un bloque explicativo por cada test aprobado, pensado para demo y revision humana del challenge.
 
 Los nombres de los tests se mantienen cortos para que la salida normal sea facil de escanear. Cuando quieras mas contexto, `--full` muestra que valido cada test, que entrada uso, que resultado observo y como siguio el flujo cuando aplica.
+
+Estos mismos tres modos estan disponibles desde la GUI en el modo **Tests**, con el selector de detalle mapeado asi (detalle creciente de izquierda a derecha):
+
+| Selector GUI | Comando equivalente | Salida |
+| --- | --- | --- |
+| `Simple` | `pytest --simple` | progreso clasico por puntos |
+| `Classic` | `pytest` (`-v` por defecto) | un test por linea con `PASSED` |
+| `Full` | `pytest --full` | verbose + bloque explicativo por test |
+
+El endpoint `/api/tests/run` ejecuta `pytest` en un subproceso aislado, valida el nivel de detalle contra una lista blanca (nunca pasa argumentos arbitrarios del cliente) y devuelve la salida mas un resumen parseado.
 
 Los tests mockean el proveedor y no llaman a Anthropic. Esto valida que el loop de `tool_use`:
 

@@ -3,6 +3,14 @@ import { createApp, nextTick } from "https://unpkg.com/vue@3/dist/vue.esm-browse
 const app = createApp({
   data() {
     return {
+      // Modo activo: 'consulta' (LLM real) o 'tests' (pytest local).
+      mode: "consulta",
+      modeItems: [
+        { value: "consulta", label: "Consulta", sub: "LLM en vivo", accent: "#6366f1" },
+        { value: "tests", label: "Tests", sub: "pytest local", accent: "#f59e0b" },
+      ],
+
+      // --- Estado del chat ---
       draft: "",
       errorMessage: "",
       loading: false,
@@ -12,38 +20,40 @@ const app = createApp({
       lastActivities: [],
       currentProcessingIndex: 0,
       processingTimerId: null,
-      theme: "light",
+      theme: "dark",
       processingSteps: [
-        {
-          key: "orchestrator-analysis",
-          label: "Orquestador",
-          color: "#6366f1",
-          detail: "analizando consulta",
-        },
-        {
-          key: "litigante-search",
-          label: "Litigante",
-          color: "#3b82f6",
-          detail: "buscando jurisprudencia",
-        },
-        {
-          key: "normativo-search",
-          label: "Normativo",
-          color: "#f59e0b",
-          detail: "buscando normativa",
-        },
-        {
-          key: "orchestrator-synthesis",
-          label: "Orquestador",
-          color: "#6366f1",
-          detail: "sintetizando respuesta",
-        },
+        { key: "orchestrator-analysis", label: "Orquestador", color: "#6366f1", detail: "analizando consulta" },
+        { key: "litigante-search", label: "Litigante", color: "#3b82f6", detail: "buscando jurisprudencia" },
+        { key: "normativo-search", label: "Normativo", color: "#f59e0b", detail: "buscando normativa" },
+        { key: "orchestrator-synthesis", label: "Orquestador", color: "#6366f1", detail: "sintetizando respuesta" },
       ],
+
+      // --- Estado del banco de pruebas ---
+      testDetail: "classic",
+      detailOptions: [
+        { value: "simple", label: "Simple", flag: "--simple" },
+        { value: "classic", label: "Classic", flag: "-v" },
+        { value: "full", label: "Full", flag: "--full" },
+      ],
+      testRunning: false,
+      testResult: null,
+      testError: "",
     };
   },
   computed: {
     activeProcessingStep() {
       return this.processingSteps[this.currentProcessingIndex] || this.processingSteps[0];
+    },
+    consoleText() {
+      return this.testResult ? this.testResult.output : "";
+    },
+    consoleCommand() {
+      if (this.testResult) {
+        return `$ ${this.testResult.command}`;
+      }
+      const option = this.detailOptions.find((opt) => opt.value === this.testDetail);
+      const flag = option && option.flag !== "-v" ? ` ${option.flag}` : "";
+      return `$ pytest${flag}`;
     },
   },
   async mounted() {
@@ -51,14 +61,24 @@ const app = createApp({
     await this.fetchState();
   },
   methods: {
+    setMode(value) {
+      if (this.loading || this.testRunning || this.mode === value) {
+        return;
+      }
+      this.mode = value;
+    },
+
     initializeTheme() {
       const savedTheme = window.localStorage.getItem("jurispeed-theme");
-      const preferredTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light";
-      this.theme = savedTheme || preferredTheme;
+      this.theme = savedTheme || "dark";
       document.documentElement.setAttribute("data-theme", this.theme);
     },
+    toggleTheme() {
+      this.theme = this.theme === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", this.theme);
+      window.localStorage.setItem("jurispeed-theme", this.theme);
+    },
+
     async fetchState() {
       const response = await fetch("/api/state");
       const payload = await response.json();
@@ -94,7 +114,7 @@ const app = createApp({
         this.lastActivities = payload.assistant?.activities || [];
         await this.scrollToBottom();
       } catch (error) {
-        this.errorMessage = error.message || "Ocurrio un error inesperado.";
+        this.errorMessage = error.message || "Ocurrió un error inesperado.";
         this.draft = message;
         this.removePendingAssistantMessage();
       } finally {
@@ -116,7 +136,7 @@ const app = createApp({
         this.sessionId = "";
         this.draft = "";
       } catch (error) {
-        this.errorMessage = error.message || "No fue posible reiniciar la conversacion.";
+        this.errorMessage = error.message || "No fue posible reiniciar la conversación.";
       } finally {
         this.loading = false;
       }
@@ -128,7 +148,7 @@ const app = createApp({
         { role: "user", content: message, localId: `${localId}-user` },
         {
           role: "assistant",
-          content: "El orquestador esta procesando tu consulta...",
+          content: "El orquestador está procesando tu consulta…",
           pending: true,
           localId: `${localId}-assistant`,
         },
@@ -152,11 +172,33 @@ const app = createApp({
       }
       this.currentProcessingIndex = 0;
     },
-    toggleTheme() {
-      this.theme = this.theme === "dark" ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", this.theme);
-      window.localStorage.setItem("jurispeed-theme", this.theme);
+
+    // --- Banco de pruebas ---
+    async runTests() {
+      if (this.testRunning) {
+        return;
+      }
+      this.testRunning = true;
+      this.testError = "";
+      try {
+        const response = await fetch("/api/tests/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ detail: this.testDetail }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "No fue posible ejecutar los tests.");
+        }
+        this.testResult = payload;
+      } catch (error) {
+        this.testError = error.message || "Ocurrió un error al ejecutar los tests.";
+        this.testResult = null;
+      } finally {
+        this.testRunning = false;
+      }
     },
+
     renderMessage(content) {
       if (typeof content === "string") {
         return content;
@@ -164,19 +206,16 @@ const app = createApp({
       return JSON.stringify(content, null, 2);
     },
     messageLabel(message) {
-      if (message.role === "user") {
-        return "Usuario";
-      }
-      return "Orquestador";
+      return message.role === "user" ? "Usuario" : "Orquestador";
     },
-    messageCardClass(message) {
+    messageClass(message) {
       if (message.pending) {
-        return "assistant-message pending-message";
+        return "assistant pending";
       }
-      return message.role === "user" ? "user-message" : "assistant-message";
+      return message.role === "user" ? "user" : "assistant";
     },
     messageAgentStyle(message) {
-      const color = message.role === "user" ? "#2563eb" : "#6366f1";
+      const color = message.role === "user" ? "#3b82f6" : "#6366f1";
       return { "--agent-color": color };
     },
     async scrollToBottom() {

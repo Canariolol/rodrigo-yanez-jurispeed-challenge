@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import subprocess
 from dataclasses import asdict
+from unittest.mock import patch
 
 from jurispeed_challenge.agents import ConversationSession
 from jurispeed_challenge.types import AgentRunResult, ToolCallTrace
@@ -124,3 +126,55 @@ def test_chat_summarizes_agent_activity(test_report) -> None:
     assert activities[1]["summary"] == "Busco jurisprudencia."
     assert activities[1]["detail"] == "2 resultado(s)."
     assert "Texto largo" not in activities[1]["summary"]
+
+
+def test_run_tests_maps_detail_to_pytest_flags(test_report) -> None:
+    app = create_app(orchestrator=FakeOrchestrator())
+    client = app.test_client()
+
+    fake_run = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="3 passed in 0.11s\n", stderr=""
+    )
+    with patch("jurispeed_challenge.web.subprocess.run", return_value=fake_run) as run_mock:
+        response = client.post("/api/tests/run", json={"detail": "full"})
+
+    assert response.status_code == 200
+    command = run_mock.call_args.args[0]
+    payload = response.get_json()
+    test_report.set_checked(
+        "El endpoint /api/tests/run mapea el nivel de detalle al flag correcto de pytest."
+    )
+    test_report.set_setup(
+        "POST /api/tests/run con detail='full' y subprocess.run mockeado (sin correr pytest real)."
+    )
+    test_report.set_observed(
+        "El comando incluye --full, status='passed' y summary.passed=3 parseado de la salida."
+    )
+    test_report.add_step("La GUI pide correr los tests en nivel Full.")
+    test_report.add_step("El endpoint traduce 'full' a ['--full'] y arma el comando de pytest.")
+    test_report.add_step("La salida simulada se parsea en un resumen estructurado para el frontend.")
+    assert "--full" in command
+    assert "--color=no" in command
+    assert payload["status"] == "passed"
+    assert payload["detail"] == "full"
+    assert payload["summary"]["passed"] == 3
+    assert payload["summary"]["total"] == 3
+
+
+def test_run_tests_rejects_unknown_detail(test_report) -> None:
+    app = create_app(orchestrator=FakeOrchestrator())
+    client = app.test_client()
+
+    with patch("jurispeed_challenge.web.subprocess.run") as run_mock:
+        response = client.post("/api/tests/run", json={"detail": "verbose"})
+
+    assert response.status_code == 400
+    test_report.set_checked(
+        "El endpoint /api/tests/run solo acepta niveles de detalle de una lista blanca."
+    )
+    test_report.set_setup("POST /api/tests/run con detail='verbose', un nivel no soportado.")
+    test_report.set_observed("Responde 400 y nunca invoca subprocess.run.")
+    test_report.add_step("El cliente envia un nivel de detalle invalido.")
+    test_report.add_step("El endpoint valida contra la lista blanca antes de ejecutar nada.")
+    test_report.add_step("No se lanza ningun proceso de pytest y se devuelve un error claro.")
+    run_mock.assert_not_called()

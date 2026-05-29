@@ -1,20 +1,150 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-theme="dark">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Jurispeed Challenge</title>
+    <title>Jurispeed · Cámara de Agentes</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..600;1,9..144,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    >
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   </head>
   <body>
-    <div id="app">
-      <div class="page-shell">
-        <aside class="sidebar">
-          <div class="brand-block">
-            <div class="brand-mark">JS</div>
+    <div id="app" v-cloak>
+      <div class="shell">
+        <aside class="rail">
+          <header class="brand">
+            <span class="brand-monogram">Js</span>
             <div>
-              <p class="eyebrow">Jurispeed.ai</p>
-              <h1>Panel de Agentes</h1>
+              <p class="kicker">Jurispeed.ai</p>
+              <h1 class="brand-name">Cámara de Agentes</h1>
+            </div>
+          </header>
+
+          <nav class="modes" aria-label="Modo de trabajo">
+            <button
+              v-for="(item, index) in modeItems"
+              :key="item.value"
+              type="button"
+              class="mode-btn"
+              :class="{ active: mode === item.value }"
+              :style="{ '--mode-accent': item.accent }"
+              :aria-pressed="mode === item.value"
+              @click="setMode(item.value)"
+            >
+              <span class="mode-index">[[ '0' + (index + 1) ]]</span>
+              <span class="mode-label">
+                [[ item.label ]]
+                <span class="mode-sub">[[ item.sub ]]</span>
+              </span>
+            </button>
+          </nav>
+
+          <!-- Contexto del modo consulta -->
+          <template v-if="mode === 'consulta'">
+            <section class="panel">
+              <p class="panel-title">Estado</p>
+              <p class="status-copy">
+                [[ loading ? `${activeProcessingStep.label}: ${activeProcessingStep.detail}` : 'Listo para conversar.' ]]
+              </p>
+              <dl class="meta-list">
+                <div>
+                  <dt>Sesión</dt>
+                  <dd>[[ sessionId || 'Nueva' ]]</dd>
+                </div>
+                <div>
+                  <dt>Mensajes</dt>
+                  <dd>[[ messages.length ]]</dd>
+                </div>
+              </dl>
+              <button class="btn btn-ghost" @click="resetSession" :disabled="loading">
+                Reiniciar conversación
+              </button>
+            </section>
+
+            <section class="panel">
+              <p class="panel-title">Actividad de agentes</p>
+              <ul v-if="loading" class="activity-list">
+                <li
+                  v-for="(step, index) in processingSteps"
+                  :key="step.key + index"
+                  class="activity-item"
+                  :class="{ active: currentProcessingIndex === index }"
+                  :style="{ '--agent-color': step.color }"
+                >
+                  <span class="agent-tag">[[ step.label ]]</span>
+                  <p class="activity-summary">[[ step.detail ]]</p>
+                </li>
+              </ul>
+              <ul v-else-if="lastActivities.length" class="activity-list">
+                <li
+                  v-for="(activity, index) in lastActivities"
+                  :key="activity.agent + index"
+                  class="activity-item"
+                  :style="{ '--agent-color': activity.color }"
+                >
+                  <span class="agent-tag">[[ activity.label ]]</span>
+                  <p class="activity-summary">[[ activity.summary ]]</p>
+                  <p v-if="activity.detail" class="activity-detail">[[ activity.detail ]]</p>
+                </li>
+              </ul>
+              <p v-else class="muted">
+                La traza del orquestador y los agentes aparecerá aquí después de cada respuesta.
+              </p>
+            </section>
+          </template>
+
+          <!-- Contexto del modo tests -->
+          <template v-else>
+            <section class="panel">
+              <p class="panel-title">Última ejecución</p>
+              <p v-if="!testResult && !testError" class="status-copy">
+                [[ testRunning ? 'Corriendo pytest…' : 'Sin ejecuciones todavía.' ]]
+              </p>
+              <dl v-else-if="testResult" class="meta-list">
+                <div>
+                  <dt>Veredicto</dt>
+                  <dd :class="testResult.status === 'passed' ? 'is-good' : 'is-bad'">
+                    [[ testResult.status === 'passed' ? 'Verde' : 'Rojo' ]]
+                  </dd>
+                </div>
+                <div>
+                  <dt>Aprobados</dt>
+                  <dd class="is-good">[[ testResult.summary.passed ]]</dd>
+                </div>
+                <div v-if="testResult.summary.failed || testResult.summary.error">
+                  <dt>Fallidos</dt>
+                  <dd class="is-bad">[[ testResult.summary.failed + testResult.summary.error ]]</dd>
+                </div>
+                <div>
+                  <dt>Duración</dt>
+                  <dd>[[ testResult.duration ]]s</dd>
+                </div>
+                <div>
+                  <dt>Detalle</dt>
+                  <dd>[[ testDetail ]]</dd>
+                </div>
+              </dl>
+              <p v-else class="status-copy is-bad" style="color: var(--bad)">No se pudo ejecutar.</p>
+            </section>
+
+            <section class="panel">
+              <p class="panel-title">Niveles de detalle</p>
+              <p class="muted">
+                Simple muestra progreso por puntos, Classic lista cada test, y Full agrega un bloque
+                explicativo por test aprobado.
+              </p>
+            </section>
+          </template>
+
+          <footer class="rail-foot">
+            <div class="legend">
+              <span class="legend-item" style="--agent-color: var(--indigo)"><b>Orquestador</b></span>
+              <span class="legend-item" style="--agent-color: var(--blue)"><b>Litigante</b>&nbsp;· jurisprudencia</span>
+              <span class="legend-item" style="--agent-color: var(--amber)"><b>Normativo</b>&nbsp;· normativa</span>
             </div>
             <button
               class="theme-toggle"
@@ -23,121 +153,170 @@
               :aria-pressed="theme === 'dark'"
               :title="theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
             >
-              [[ theme === 'dark' ? 'Claro' : 'Oscuro' ]]
+              [[ theme === 'dark' ? '☾ Oscuro' : '☀ Claro' ]]
             </button>
-          </div>
-
-          <section class="side-panel">
-            <h2>Estado</h2>
-            <p class="status-copy">
-              [[ loading ? `${activeProcessingStep.label}: ${activeProcessingStep.detail}` : 'Listo para conversar.' ]]
-            </p>
-            <dl class="meta-list">
-              <div>
-                <dt>Sesion</dt>
-                <dd>[[ sessionId || 'Nueva' ]]</dd>
-              </div>
-              <div>
-                <dt>Mensajes</dt>
-                <dd>[[ messages.length ]]</dd>
-              </div>
-            </dl>
-            <button class="secondary-button" @click="resetSession" :disabled="loading">
-              Reiniciar conversacion
-            </button>
-          </section>
-
-          <section class="side-panel">
-            <h2>Actividad de agentes</h2>
-            <ul v-if="loading" class="activity-list">
-              <li
-                v-for="(step, index) in processingSteps"
-                :key="step.key + index"
-                class="activity-item"
-                :class="{ active: currentProcessingIndex === index }"
-              >
-                <span class="activity-agent" :style="{ '--agent-color': step.color }">
-                  [[ step.label ]]
-                </span>
-                <p class="activity-summary">[[ step.detail ]]</p>
-              </li>
-            </ul>
-            <ul v-else-if="lastActivities.length" class="activity-list">
-              <li v-for="(activity, index) in lastActivities" :key="activity.agent + index" class="activity-item">
-                <span class="activity-agent" :style="{ '--agent-color': activity.color }">
-                  [[ activity.label ]]
-                </span>
-                <p class="activity-summary">[[ activity.summary ]]</p>
-                <p v-if="activity.detail" class="activity-detail">[[ activity.detail ]]</p>
-              </li>
-            </ul>
-            <p v-else class="muted">La actividad del orquestador y los agentes aparecera aqui despues de cada respuesta.</p>
-          </section>
+          </footer>
         </aside>
 
-        <main class="main-panel">
-          <section class="chat-header">
-            <div>
-              <p class="eyebrow">Mini-orquestador multi-agente</p>
-              <h2>Consulta legal asistida</h2>
-            </div>
-            <span class="status-pill" :class="{ busy: loading }">
-              [[ loading ? 'Procesando' : 'Disponible' ]]
-            </span>
-          </section>
-
-          <section v-if="loading" class="processing-banner">
-            <div class="processing-spinner" aria-hidden="true"></div>
-            <div>
-              <p class="processing-title">El sistema esta trabajando</p>
-              <p class="processing-copy">
-                [[ activeProcessingStep.label ]]: [[ activeProcessingStep.detail ]]
-              </p>
-            </div>
-          </section>
-
-          <section class="chat-timeline" ref="timeline">
-            <article v-if="messages.length === 0" class="empty-state">
-              <h3>Haz una pregunta para iniciar</h3>
-              <p>
-                El orquestador decidira si consultar jurisprudencia, normativa o ambas
-                antes de redactar la respuesta final.
-              </p>
-            </article>
-
-            <article
-              v-for="(message, index) in messages"
-              :key="message.localId || `${message.role}-${index}`"
-              class="message-card"
-              :class="messageCardClass(message)"
-            >
-              <div class="message-meta">
-                <span class="message-agent" :style="messageAgentStyle(message)">
-                  [[ messageLabel(message) ]]
-                </span>
-                <span v-if="message.pending" class="message-pending">En curso</span>
+        <main class="stage">
+          <!-- ============ MODO CONSULTA ============ -->
+          <template v-if="mode === 'consulta'">
+            <header class="stage-head">
+              <div>
+                <p class="kicker">Mini-orquestador multi-agente</p>
+                <h2 class="stage-title">Consulta legal asistida</h2>
               </div>
-              <p class="message-text">[[ renderMessage(message.content) ]]</p>
-            </article>
-          </section>
+              <span class="status-pill" :class="{ busy: loading }">
+                [[ loading ? 'Procesando' : 'Disponible' ]]
+              </span>
+            </header>
 
-          <form class="composer" @submit.prevent="sendMessage">
-            <label class="sr-only" for="message">Escribe tu consulta</label>
-            <textarea
-              id="message"
-              v-model="draft"
-              class="composer-input"
-              rows="4"
-              placeholder="Ejemplo: Tengo un contrato de arriendo y el arrendatario lleva cuatro meses sin pagar..."
-              :disabled="loading"
-            ></textarea>
-            <div class="composer-actions">
-              <p v-if="errorMessage" class="error-message">[[ errorMessage ]]</p>
-              <button class="primary-button" type="submit" :disabled="loading || !draft.trim()">
-                [[ loading ? 'Consultando...' : 'Enviar consulta' ]]
-              </button>
+            <div class="stage-body">
+              <section v-if="loading" class="processing-banner">
+                <div class="spinner" aria-hidden="true"></div>
+                <div>
+                  <p class="processing-title">El sistema está trabajando</p>
+                  <p class="processing-copy">
+                    [[ activeProcessingStep.label ]]: [[ activeProcessingStep.detail ]]
+                  </p>
+                </div>
+              </section>
+
+              <section class="timeline" ref="timeline">
+                <article v-if="messages.length === 0" class="empty-state">
+                  <h3 class="font-display">Haz una pregunta para iniciar</h3>
+                  <p>
+                    El orquestador decidirá si consultar jurisprudencia, normativa o ambas
+                    antes de redactar la respuesta final, citando solo la evidencia encontrada.
+                  </p>
+                </article>
+
+                <article
+                  v-for="(message, index) in messages"
+                  :key="message.localId || `${message.role}-${index}`"
+                  class="message"
+                  :class="messageClass(message)"
+                >
+                  <div class="message-meta">
+                    <span class="agent-tag" :style="messageAgentStyle(message)">
+                      [[ messageLabel(message) ]]
+                    </span>
+                    <span v-if="message.pending" class="message-pending-tag">En curso</span>
+                  </div>
+                  <p class="message-text">[[ renderMessage(message.content) ]]</p>
+                </article>
+              </section>
+
+              <form class="composer" @submit.prevent="sendMessage">
+                <label class="sr-only" for="message">Escribe tu consulta</label>
+                <textarea
+                  id="message"
+                  v-model="draft"
+                  class="composer-input"
+                  rows="4"
+                  placeholder="Ejemplo: Tengo un contrato de arriendo y el arrendatario lleva cuatro meses sin pagar…"
+                  :disabled="loading"
+                ></textarea>
+                <div class="composer-actions">
+                  <p v-if="errorMessage" class="error-message">[[ errorMessage ]]</p>
+                  <span v-else></span>
+                  <button class="btn btn-primary" type="submit" :disabled="loading || !draft.trim()">
+                    [[ loading ? 'Consultando…' : 'Enviar consulta' ]]
+                  </button>
+                </div>
+              </form>
             </div>
-          </form>
+          </template>
+
+          <!-- ============ MODO TESTS ============ -->
+          <template v-else>
+            <header class="stage-head">
+              <div>
+                <p class="kicker">Suite de pytest · sin llamadas al LLM</p>
+                <h2 class="stage-title">Banco de pruebas</h2>
+              </div>
+              <span class="status-pill" :class="{ busy: testRunning }">
+                [[ testRunning ? 'Corriendo' : 'Listo' ]]
+              </span>
+            </header>
+
+            <div class="stage-body">
+              <div class="runner">
+                <div class="runner-bar">
+                  <div>
+                    <span class="field-label">Nivel de detalle</span>
+                    <div class="seg" role="group" aria-label="Nivel de detalle">
+                      <button
+                        v-for="opt in detailOptions"
+                        :key="opt.value"
+                        type="button"
+                        class="seg-item"
+                        :class="{ active: testDetail === opt.value }"
+                        :aria-pressed="testDetail === opt.value"
+                        :disabled="testRunning"
+                        @click="testDetail = opt.value"
+                      >
+                        <span class="seg-name">[[ opt.label ]]</span>
+                        <span class="seg-flag">[[ opt.flag ]]</span>
+                      </button>
+                    </div>
+                  </div>
+                  <button class="btn btn-primary" type="button" @click="runTests" :disabled="testRunning">
+                    [[ testRunning ? 'Ejecutando…' : '▸ Correr tests' ]]
+                  </button>
+                </div>
+
+                <div v-if="testResult" class="run-summary" :class="testResult.status">
+                  <span class="verdict">
+                    [[ testResult.status === 'passed' ? 'Todo en verde' : 'Hay fallos' ]]
+                  </span>
+                  <div class="stat">
+                    <span class="stat-value good">[[ testResult.summary.passed ]]</span>
+                    <span class="stat-label">Aprobados</span>
+                  </div>
+                  <div class="stat">
+                    <span
+                      class="stat-value"
+                      :class="(testResult.summary.failed + testResult.summary.error) ? 'bad' : ''"
+                    >
+                      [[ testResult.summary.failed + testResult.summary.error ]]
+                    </span>
+                    <span class="stat-label">Fallidos</span>
+                  </div>
+                  <div class="stat" v-if="testResult.summary.skipped">
+                    <span class="stat-value">[[ testResult.summary.skipped ]]</span>
+                    <span class="stat-label">Omitidos</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-value">[[ testResult.duration ]]s</span>
+                    <span class="stat-label">Duración</span>
+                  </div>
+                </div>
+
+                <p v-if="testError" class="error-message">[[ testError ]]</p>
+
+                <div class="console">
+                  <div class="console-head">
+                    <span class="console-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="console-cmd">[[ consoleCommand ]]</span>
+                  </div>
+                  <div v-if="testRunning" class="console-empty">
+                    <span class="console-running">
+                      <span class="spinner" aria-hidden="true" style="border-color: color-mix(in srgb, var(--amber) 30%, transparent); border-top-color: var(--amber)"></span>
+                      Recolectando y ejecutando tests…
+                    </span>
+                  </div>
+                  <pre v-else-if="consoleText" class="console-body">[[ consoleText ]]</pre>
+                  <div v-else class="console-empty">
+                    <div>
+                      <p class="font-display">Aún no has corrido la suite</p>
+                      <p>Elige un nivel de detalle y presiona «Correr tests».</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
         </main>
       </div>
     </div>

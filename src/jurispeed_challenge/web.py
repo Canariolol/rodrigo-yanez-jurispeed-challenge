@@ -2,8 +2,13 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import secrets
+import subprocess
+import sys
+import time
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
@@ -15,6 +20,17 @@ from jurispeed_challenge.types import AgentRunResult, ToolCallTrace
 
 
 SESSION_KEY = "jurispeed_session_id"
+
+# Niveles de detalle del runner de pytest expuesto en la GUI.
+# El orden refleja un detalle creciente: Simple < Classic < Full.
+#   simple  -> --simple : progreso clasico por puntos (verbose desactivado).
+#   classic -> (vacio)  : verbose por defecto (addopts="-v"), un test por linea.
+#   full    -> --full   : verbose + bloque explicativo por test aprobado.
+TEST_DETAIL_FLAGS: dict[str, list[str]] = {
+    "simple": ["--simple"],
+    "classic": [],
+    "full": ["--full"],
+}
 
 
 def create_app(orchestrator: OrchestratorAgent | None = None) -> Flask:
@@ -80,6 +96,49 @@ def create_app(orchestrator: OrchestratorAgent | None = None) -> Flask:
             }
         )
 
+    @app.post("/api/tests/run")
+    def run_tests() -> Any:
+        payload = request.get_json(silent=True) or {}
+        detail = str(payload.get("detail", "classic")).strip().lower()
+        if detail not in TEST_DETAIL_FLAGS:
+            options = ", ".join(sorted(TEST_DETAIL_FLAGS))
+            return (
+                jsonify({"error": f"Nivel de detalle invalido. Usa uno de: {options}."}),
+                400,
+            )
+
+        command = [sys.executable, "-m", "pytest", "--color=no", *TEST_DETAIL_FLAGS[detail]]
+        started = time.perf_counter()
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=str(_project_root()),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+        except FileNotFoundError:
+            return jsonify({"error": "No se encontro pytest en el entorno actual."}), 500
+        except subprocess.TimeoutExpired:
+            return jsonify({"error": "La ejecucion de pytest supero el limite de 180s."}), 504
+
+        duration = round(time.perf_counter() - started, 2)
+        output = completed.stdout
+        if completed.stderr:
+            output = f"{output}\n{completed.stderr}" if output else completed.stderr
+
+        return jsonify(
+            {
+                "detail": detail,
+                "command": " ".join(["pytest", "--color=no", *TEST_DETAIL_FLAGS[detail]]),
+                "returncode": completed.returncode,
+                "status": "passed" if completed.returncode == 0 else "failed",
+                "duration": duration,
+                "summary": _parse_pytest_summary(completed.returncode, completed.stdout),
+                "output": output.rstrip() + "\n" if output else "",
+            }
+        )
+
     return app
 
 
@@ -101,6 +160,41 @@ def main(argv: list[str] | None = None) -> int:
 
 def _get_orchestrator(app: Flask) -> OrchestratorAgent:
     return app.extensions["jurispeed_orchestrator"]
+
+
+def _project_root() -> Path:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    return here.parents[2]
+
+
+def _parse_pytest_summary(returncode: int, stdout: str) -> dict[str, Any]:
+    counts = {
+        outcome: _count_outcome(outcome, stdout)
+        for outcome in ("passed", "failed", "error", "skipped", "xfailed", "xpassed")
+    }
+    total = counts["passed"] + counts["failed"] + counts["error"] + counts["skipped"]
+    return {
+        **counts,
+        "total": total,
+        "line": _summary_line(stdout),
+        "ok": returncode == 0,
+    }
+
+
+def _count_outcome(outcome: str, stdout: str) -> int:
+    match = re.search(rf"(\d+) {outcome}\b", stdout)
+    return int(match.group(1)) if match else 0
+
+
+def _summary_line(stdout: str) -> str:
+    for raw_line in reversed(stdout.splitlines()):
+        line = raw_line.strip()
+        if " in " in line and ("passed" in line or "failed" in line or "error" in line):
+            return line.strip("= ").strip()
+    return ""
 
 
 def _get_session_store(app: Flask) -> dict[str, ConversationSession]:
