@@ -12,6 +12,7 @@ La implementacion principal usa la Anthropic Python SDK directa con `tool_use` n
 - Busquedas locales sobre `mock_data.json`.
 - Historial conversacional en memoria.
 - CLI interactivo y demo de los 3 turns obligatorios.
+- Interfaz web con Flask + Vue.
 - Tests unitarios sin llamadas reales al LLM.
 
 ## Instalacion
@@ -64,6 +65,14 @@ Sin instalar el script, tambien puedes usar:
 PYTHONPATH=src python -m jurispeed_challenge.cli --demo
 ```
 
+Interfaz web:
+
+```bash
+jurispeed-challenge-web
+```
+
+Luego abre `http://127.0.0.1:5000`.
+
 ## Como funciona
 
 El sistema tiene tres agentes:
@@ -82,6 +91,13 @@ El flujo es este:
 6. Claude sintetiza una respuesta final usando solo la evidencia encontrada.
 
 Ese loop manual vive en [tool_loop.py](jurispeed-challenge/src/jurispeed_challenge/tool_loop.py) y es la pieza central del challenge.
+
+La interfaz web agrega una capa Flask + Vue por encima del mismo orquestador:
+
+- Flask expone `/api/chat`, `/api/state`, `/api/session/reset` y sirve la pagina principal.
+- Vue renderiza el chat, el historial, el estado de carga y las herramientas usadas.
+- La sesion conversacional sigue siendo en memoria, solo que ahora se asocia a una cookie de sesion del navegador.
+- Para mantener el setup liviano del challenge, Vue se carga desde CDN en la pagina web.
 
 ## Tests
 

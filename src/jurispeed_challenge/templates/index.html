@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Jurispeed Challenge</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  </head>
+  <body>
+    <div id="app">
+      <div class="page-shell">
+        <aside class="sidebar">
+          <div class="brand-block">
+            <div class="brand-mark">JS</div>
+            <div>
+              <p class="eyebrow">Jurispeed.ai</p>
+              <h1>Panel de Agentes</h1>
+            </div>
+          </div>
+
+          <section class="side-panel">
+            <h2>Estado</h2>
+            <p class="status-copy">
+              [[ loading ? `${activeProcessingStep.label}: ${activeProcessingStep.detail}` : 'Listo para conversar.' ]]
+            </p>
+            <dl class="meta-list">
+              <div>
+                <dt>Sesion</dt>
+                <dd>[[ sessionId || 'Nueva' ]]</dd>
+              </div>
+              <div>
+                <dt>Mensajes</dt>
+                <dd>[[ messages.length ]]</dd>
+              </div>
+            </dl>
+            <button class="secondary-button" @click="resetSession" :disabled="loading">
+              Reiniciar conversacion
+            </button>
+          </section>
+
+          <section class="side-panel">
+            <h2>Actividad de agentes</h2>
+            <ul v-if="loading" class="activity-list">
+              <li
+                v-for="(step, index) in processingSteps"
+                :key="step.key + index"
+                class="activity-item"
+                :class="{ active: currentProcessingIndex === index }"
+              >
+                <span class="activity-agent" :style="{ '--agent-color': step.color }">
+                  [[ step.label ]]
+                </span>
+                <p class="activity-summary">[[ step.detail ]]</p>
+              </li>
+            </ul>
+            <ul v-else-if="lastActivities.length" class="activity-list">
+              <li v-for="(activity, index) in lastActivities" :key="activity.agent + index" class="activity-item">
+                <span class="activity-agent" :style="{ '--agent-color': activity.color }">
+                  [[ activity.label ]]
+                </span>
+                <p class="activity-summary">[[ activity.summary ]]</p>
+                <p v-if="activity.detail" class="activity-detail">[[ activity.detail ]]</p>
+              </li>
+            </ul>
+            <p v-else class="muted">La actividad del orquestador y los agentes aparecera aqui despues de cada respuesta.</p>
+          </section>
+        </aside>
+
+        <main class="main-panel">
+          <section class="chat-header">
+            <div>
+              <p class="eyebrow">Mini-orquestador multi-agente</p>
+              <h2>Consulta legal asistida</h2>
+            </div>
+            <span class="status-pill" :class="{ busy: loading }">
+              [[ loading ? 'Procesando' : 'Disponible' ]]
+            </span>
+          </section>
+
+          <section v-if="loading" class="processing-banner">
+            <div class="processing-spinner" aria-hidden="true"></div>
+            <div>
+              <p class="processing-title">El sistema esta trabajando</p>
+              <p class="processing-copy">
+                [[ activeProcessingStep.label ]]: [[ activeProcessingStep.detail ]]
+              </p>
+            </div>
+          </section>
+
+          <section class="chat-timeline" ref="timeline">
+            <article v-if="messages.length === 0" class="empty-state">
+              <h3>Haz una pregunta para iniciar</h3>
+              <p>
+                El orquestador decidira si consultar jurisprudencia, normativa o ambas
+                antes de redactar la respuesta final.
+              </p>
+            </article>
+
+            <article
+              v-for="(message, index) in messages"
+              :key="message.localId || `${message.role}-${index}`"
+              class="message-card"
+              :class="messageCardClass(message)"
+            >
+              <div class="message-meta">
+                <span class="message-agent" :style="messageAgentStyle(message)">
+                  [[ messageLabel(message) ]]
+                </span>
+                <span v-if="message.pending" class="message-pending">En curso</span>
+              </div>
+              <p class="message-text">[[ renderMessage(message.content) ]]</p>
+            </article>
+          </section>
+
+          <form class="composer" @submit.prevent="sendMessage">
+            <label class="sr-only" for="message">Escribe tu consulta</label>
+            <textarea
+              id="message"
+              v-model="draft"
+              class="composer-input"
+              rows="4"
+              placeholder="Ejemplo: Tengo un contrato de arriendo y el arrendatario lleva cuatro meses sin pagar..."
+              :disabled="loading"
+            ></textarea>
+            <div class="composer-actions">
+              <p v-if="errorMessage" class="error-message">[[ errorMessage ]]</p>
+              <button class="primary-button" type="submit" :disabled="loading || !draft.trim()">
+                [[ loading ? 'Consultando...' : 'Enviar consulta' ]]
+              </button>
+            </div>
+          </form>
+        </main>
+      </div>
+    </div>
+
+    <script type="module" src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>
